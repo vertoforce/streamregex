@@ -17,8 +17,8 @@ const (
 // Regex just a wrapper around a regex
 type Regex struct {
 	Regex             *regexp.Regexp
-	RingBufferSize    int64
-	RingBufferOverlap int64
+	RingBufferSize    int
+	RingBufferOverlap int
 }
 
 // NewRegex Create regex from built in regex package
@@ -59,11 +59,16 @@ func (r *Regex) FindReader(ctx context.Context, reader io.Reader) chan []byte {
 		defer close(allMatches)
 
 		// Read and scan in chunks with some overlap
+		var nextOverlap []byte
 		for {
 			// Read into ring buffer
 			buf := &bytes.Buffer{}
 
-			n, err := io.CopyN(buf, reader, r.RingBufferSize)
+			// Write last overlap
+			buf.Write(nextOverlap)
+
+			// Read from stream until buffer is full len==(RingBufferSize)
+			n, err := io.CopyN(buf, reader, int64(r.RingBufferSize-len(nextOverlap)))
 			if err != nil && err != io.EOF {
 				// Real error reading, just break off
 				break
@@ -80,9 +85,12 @@ func (r *Regex) FindReader(ctx context.Context, reader io.Reader) chan []byte {
 			}
 
 			// See if we are done and should stop
-			if n < r.RingBufferSize || err == io.EOF {
+			if int(n) < r.RingBufferSize || err == io.EOF {
 				// We are done
 				break
+			} else {
+				// We should keep going, copy the end of this buffer in to start of next buffer
+				nextOverlap = buf.Bytes()[buf.Len()-1-r.RingBufferOverlap : buf.Len()]
 			}
 		}
 	}()
