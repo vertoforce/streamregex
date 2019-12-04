@@ -18,3 +18,5 @@ for match := range matchedData {
     fmt.Println(match)
 }
 ```
+
+Outputs: `stream of`
