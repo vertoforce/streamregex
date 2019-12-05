@@ -60,6 +60,7 @@ func (r *Regex) FindReader(ctx context.Context, reader io.Reader) chan []byte {
 
 		// Read and scan in chunks with some overlap
 		var nextOverlap []byte
+		var lastMatch []byte
 		for {
 			// Read into ring buffer
 			buf := &bytes.Buffer{}
@@ -77,10 +78,14 @@ func (r *Regex) FindReader(ctx context.Context, reader io.Reader) chan []byte {
 			// Scan what we actually read
 			matches := r.Regex.FindAll(buf.Bytes()[0:n], -1)
 			for _, match := range matches {
-				select {
-				case allMatches <- match:
-				case <-ctx.Done():
-					return
+				// check if this match is the last added match (avoid duplicates)
+				if !bytes.Equal(match, lastMatch) {
+					select {
+					case allMatches <- match:
+						lastMatch = match
+					case <-ctx.Done():
+						return
+					}
 				}
 			}
 

@@ -30,4 +30,28 @@ func TestFindReader(t *testing.T) {
 	if matches != 1 {
 		t.Errorf("Did not find correct number of matches")
 	}
+
+	// Test for duplicates
+
+	// Create string
+	data = `test test test test test test test test test`
+	stream = strings.NewReader(data)
+
+	// Build regex
+	regexInt = regexp.MustCompile(`test`)
+	regex = NewRegex(regexInt)
+	// Use a ring buffer such that we cut off our match, but will get it in the overlap
+	regex.RingBufferSize = 10
+	regex.RingBufferOverlap = 5
+
+	// Find matches
+	matchedData = regex.FindReader(context.Background(), stream)
+	matches = 0
+	for match := range matchedData {
+		matches++
+		fmt.Println(string(match))
+	}
+	if matches != 1 {
+		t.Errorf("Did not find correct number of matches")
+	}
 }
