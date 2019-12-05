@@ -1,6 +1,6 @@
-# streamregex
+# Streamregex
 
-streamregex allows you to get the matched data of a regex on a io.Reader stream.
+Streamregex allows you to get the matched data of a regex on a io.Reader stream.
 
 ## Usage
 
@@ -26,7 +26,6 @@ Outputs: `stream of`
 ## How it works
 
 This basically uses a sliding window buffer to scan parts of the input stream.  You can configure this size with
-`regex.RingBufferSize` and `regex.RingBufferOverlap` based on the expected length of your rules.
+`regex.RingBufferSize` and `regex.RingBufferOverlap` based on the expected matching length of your rules.
 
-Note that to avoid duplicate rule matches, it doesn't add matches that are exactly the same as the last match.  So if you are
-expecting multiple matches in a row, you may not see them.
+Note that to avoid duplicate rule matches, the library ignores matches that are exactly the same as the last match.  So if you are expecting multiple matches in a row, you may not see them.
