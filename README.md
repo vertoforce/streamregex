@@ -1,5 +1,8 @@
 # Streamregex
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/vertoforce/streamregex)](https://goreportcard.com/report/github.com/vertoforce/streamregex)
+[![Documentation](https://godoc.org/github.com/vertoforce/streamregex?status.svg)](https://godoc.org/github.com/vertoforce/streamregex)
+
 Streamregex allows you to get the matched data of a regex on a io.Reader stream.
 
 ## Usage
