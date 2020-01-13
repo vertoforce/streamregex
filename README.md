@@ -3,7 +3,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/vertoforce/streamregex)](https://goreportcard.com/report/github.com/vertoforce/streamregex)
 [![Documentation](https://godoc.org/github.com/vertoforce/streamregex?status.svg)](https://godoc.org/github.com/vertoforce/streamregex)
 
-Streamregex allows you to get the matched data of a regex on a io.Reader stream.
+Go does not let you find the _matched data_ of a regex from a stream of data.  They let you find [the first position of a match](https://godoc.org/regexp#Regexp.FindReaderIndex), but not the data itself.
+
+Streamregex allows you to get a channel of the _matched data_ of a regex on a io.Reader stream.
 
 ## Usage
 
