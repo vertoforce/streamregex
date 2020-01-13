@@ -20,7 +20,7 @@ func ExampleFindReader() {
 	matches := 0
 	for match := range matchedData {
 		matches++
-		fmt.Println(string(match))
+		fmt.Println(match)
 	}
 
 	// Output: stream    of

@@ -20,7 +20,7 @@ regex := regexp.MustCompile(`stream\s+of`)
 // Find matches
 matchedData := FindReader(context.Background(), regex, 100, stream)
 for match := range matchedData {
-    fmt.Println(string(match))
+    fmt.Println(match)
 }
 
 // Output: stream    of
