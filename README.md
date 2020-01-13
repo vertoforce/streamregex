@@ -10,27 +10,22 @@ Streamregex allows you to get a channel of the _matched data_ of a regex on a io
 ## Usage
 
 ```go
-// Build stream
-streamData = `this is a stream of data`
-stream := strings.NewReader(streamData)
+// Create string
+data := `0123456789this is a stream    of data with lots of trailing information`
+stream := strings.NewReader(data)
 
 // Build regex
-regexInt := regexp.MustCompile(`stream of`)
-regex := Regex(regexInt)
-regex.RingBufferSize = 1024*1024 // 1MB (default)
-regex.RingBufferOverlap = 1024 // 1KB (default)
+regex := regexp.MustCompile(`stream\s+of`)
 
-matchedData := regex.FindReader(stream)
+// Find matches
+matchedData := FindReader(context.Background(), regex, 100, stream)
 for match := range matchedData {
-    fmt.Println(match)
+    fmt.Println(string(match))
 }
-```
 
-Outputs: `stream of`
+// Output: stream    of
+```
 
 ## How it works
 
-This basically uses a sliding window buffer to scan parts of the input stream.  You can configure this size with
-`regex.RingBufferSize` and `regex.RingBufferOverlap` based on the expected matching length of your rules.
-
-Note that to avoid duplicate rule matches, the library ignores matches that are exactly the same as the last match.  So if you are expecting multiple matches in a row, you may not see them.
+We use a custom [SplitFunc](https://golang.org/pkg/bufio/#SplitFunc) to split the reader into each regex match.  Normally for a SplitFunc it will keep reading more and more data into the buffer until it finds a match. To avoid pulling all the reader data into memory, the function accepts a `maxMatchLength` if you know the maximum match length of a match.

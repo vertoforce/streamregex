@@ -7,17 +7,16 @@ import (
 	"strings"
 )
 
-func ExampleRegex_FindReader() {
+func ExampleFindReader() {
 	// Create string
 	data := `0123456789this is a stream    of data with lots of trailing information`
 	stream := strings.NewReader(data)
 
 	// Build regex
-	regexInt := regexp.MustCompile(`stream\s+of`)
-	regex := NewRegex(regexInt)
+	regex := regexp.MustCompile(`stream\s+of`)
 
 	// Find matches
-	matchedData := regex.FindReader(context.Background(), stream)
+	matchedData := FindReader(context.Background(), regex, 100, stream)
 	matches := 0
 	for match := range matchedData {
 		matches++

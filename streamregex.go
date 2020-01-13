@@ -2,100 +2,48 @@
 package streamregex
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"io"
 	"regexp"
 )
 
-// Defaults for ring buffer
-const (
-	DefaultRingBufferSize    = 1024 * 1024 // 1MB
-	DefaultRingBufferOverlap = 1024        // 1KB
-)
-
-// Regex just a wrapper around a regex
-type Regex struct {
-	Regex             *regexp.Regexp
-	RingBufferSize    int
-	RingBufferOverlap int
-}
-
-// NewRegex Create regex from built in regex package
-func NewRegex(regex *regexp.Regexp) *Regex {
-	r := &Regex{
-		Regex:             regex,
-		RingBufferSize:    DefaultRingBufferSize,
-		RingBufferOverlap: DefaultRingBufferOverlap,
-	}
-
-	return r
-}
-
-// FindReaderString return channel of matched strings from reader
-func (r *Regex) FindReaderString(ctx context.Context, reader io.Reader) chan string {
-	ret := make(chan string)
-
-	go func() {
-		defer close(ret)
-
-		for match := range r.FindReader(ctx, reader) {
-			select {
-			case ret <- string(match):
-			case <-ctx.Done():
-				return
-			}
+// SplitRegex takes a regex and returns a split function that will find that regex in a byte slice
+func SplitRegex(re *regexp.Regexp, maxMatchLength int) bufio.SplitFunc {
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if atEOF && len(data) == 0 {
+			return 0, nil, io.EOF
 		}
-	}()
-
-	return ret
+		if loc := re.FindIndex(data); loc != nil {
+			return loc[1], data[loc[0]:loc[1]], nil
+		}
+		if atEOF {
+			return 0, nil, io.EOF
+		}
+		if len(data) >= maxMatchLength {
+			return maxMatchLength, nil, nil
+		}
+		return 0, nil, nil
+	}
 }
 
 // FindReader return channel of matched []byte from reader
-func (r *Regex) FindReader(ctx context.Context, reader io.Reader) chan []byte {
-	allMatches := make(chan []byte)
+func FindReader(ctx context.Context, r *regexp.Regexp, maxMatchLength int, reader io.Reader) chan string {
+	allMatches := make(chan string)
+
+	buf := make([]byte, maxMatchLength)
 
 	go func() {
 		defer close(allMatches)
 
-		// Read and scan in chunks with some overlap
-		var nextOverlap []byte
-		var lastMatch []byte
-		for {
-			// Read into ring buffer
-			buf := &bytes.Buffer{}
-
-			// Write last overlap
-			buf.Write(nextOverlap)
-
-			// Read from stream until buffer is full len==(RingBufferSize)
-			n, err := io.CopyN(buf, reader, int64(r.RingBufferSize-len(nextOverlap)))
-			if err != nil && err != io.EOF {
-				// Real error reading, just break off
-				break
-			}
-
-			// Scan what we actually read
-			matches := r.Regex.FindAll(buf.Bytes()[0:n], -1)
-			for _, match := range matches {
-				// check if this match is the last added match (avoid duplicates)
-				if !bytes.Equal(match, lastMatch) {
-					select {
-					case allMatches <- match:
-						lastMatch = match
-					case <-ctx.Done():
-						return
-					}
-				}
-			}
-
-			// See if we are done and should stop
-			if int(n) < r.RingBufferSize || err == io.EOF {
-				// We are done
-				break
-			} else {
-				// We should keep going, copy the end of this buffer in to start of next buffer
-				nextOverlap = buf.Bytes()[buf.Len()-1-r.RingBufferOverlap : buf.Len()]
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(buf, maxMatchLength)
+		scanner.Split(SplitRegex(r, maxMatchLength))
+		for scanner.Scan() {
+			select {
+			case <-ctx.Done():
+				return
+			case allMatches <- scanner.Text():
 			}
 		}
 	}()

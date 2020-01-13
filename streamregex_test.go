@@ -2,7 +2,6 @@ package streamregex
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -14,18 +13,14 @@ func TestFindReader(t *testing.T) {
 	stream := strings.NewReader(data)
 
 	// Build regex
-	regexInt := regexp.MustCompile(`stream\s+of`)
-	regex := NewRegex(regexInt)
-	// Use a ring buffer such that we cut off our match, but will get it in the overlap
-	regex.RingBufferSize = 22
-	regex.RingBufferOverlap = 5
+	regex := regexp.MustCompile(`stream\s+of`)
 
 	// Find matches
-	matchedData := regex.FindReader(context.Background(), stream)
+	matchedData := FindReader(context.Background(), regex, 40, stream)
 	matches := 0
-	for match := range matchedData {
+	for range matchedData {
 		matches++
-		fmt.Println(string(match))
+		// fmt.Println(string(match))
 	}
 	if matches != 1 {
 		t.Errorf("Did not find correct number of matches")
@@ -38,20 +33,19 @@ func TestFindReader(t *testing.T) {
 	stream = strings.NewReader(data)
 
 	// Build regex
-	regexInt = regexp.MustCompile(`test`)
-	regex = NewRegex(regexInt)
-	// Use a ring buffer such that we cut off our match, but will get it in the overlap
-	regex.RingBufferSize = 10
-	regex.RingBufferOverlap = 5
+	regex = regexp.MustCompile(`test`)
 
 	// Find matches
-	matchedData = regex.FindReader(context.Background(), stream)
+	matchedData = FindReader(context.Background(), regex, 5, stream)
 	matches = 0
 	for match := range matchedData {
 		matches++
-		fmt.Println(string(match))
+		if match != "test" {
+			t.Errorf("Invalid match: %s", match)
+		}
+		// fmt.Println(string(match))
 	}
-	if matches != 1 {
+	if matches != 9 {
 		t.Errorf("Did not find correct number of matches")
 	}
 }
