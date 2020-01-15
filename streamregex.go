@@ -21,17 +21,18 @@ func SplitRegex(re *regexp.Regexp, maxMatchLength int) bufio.SplitFunc {
 			return 0, nil, io.EOF
 		}
 		if len(data) >= maxMatchLength {
-			return maxMatchLength, nil, nil
+			return len(data) - maxMatchLength, nil, nil
 		}
 		return 0, nil, nil
 	}
 }
 
-// FindReader return channel of matched []byte from reader
+// FindReader return channel of matched []byte from reader.
+// This function will allocate maxMatchLength*2 bytes of memory
 func FindReader(ctx context.Context, r *regexp.Regexp, maxMatchLength int, reader io.Reader) chan string {
 	allMatches := make(chan string)
 
-	buf := make([]byte, maxMatchLength)
+	buf := make([]byte, maxMatchLength*2)
 
 	go func() {
 		defer close(allMatches)
