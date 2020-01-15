@@ -29,3 +29,5 @@ for match := range matchedData {
 ## How it works
 
 We use a custom [SplitFunc](https://golang.org/pkg/bufio/#SplitFunc) to split the reader into each regex match.  Normally for a SplitFunc it will keep reading more and more data into the buffer until it finds a match. To avoid pulling all the reader data into memory, the function accepts a `maxMatchLength` if you know the maximum match length of a match.
+
+Note that we need to allocate a `maxMatchLength*2` bytes of memory to successfully scan the reader for matches.
