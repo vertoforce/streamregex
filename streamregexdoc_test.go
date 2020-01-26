@@ -25,3 +25,23 @@ func ExampleFindReader() {
 
 	// Output: stream    of
 }
+
+func ExampleFindReaderIndex() {
+	// Create string
+	data := `0123456789this is a stream    of data with lots of trailing information`
+	stream := strings.NewReader(data)
+
+	// Build regex
+	regex := regexp.MustCompile(`stream\s+of`)
+
+	// Find matches and indexes
+	matchedData, matchedIndexes := FindReaderIndex(context.Background(), regex, 100, stream)
+	matches := 0
+	for match := range matchedData {
+		index := <-matchedIndexes
+		matches++
+		fmt.Println(match, index)
+	}
+
+	// Output: stream    of
+}
