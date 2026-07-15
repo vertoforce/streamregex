@@ -39,8 +39,16 @@ func TestFindReader(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// Find matches
-		matchedData := FindReader(context.Background(), test.regex, test.maxMatchLen, strings.NewReader(test.input))
+		// Find matches. The caller owns the channel: run FindReader in a goroutine
+		// and close the channel once it returns.
+		matchedData := make(chan string)
+		go func() {
+			if err := FindReader(context.Background(), test.regex, test.maxMatchLen, strings.NewReader(test.input), matchedData); err != nil {
+				t.Errorf("FindReader returned error: %v", err)
+			}
+			close(matchedData)
+		}()
+
 		matches := 0
 		for match := range matchedData {
 			matches++

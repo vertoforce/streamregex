@@ -5,9 +5,14 @@
 
 Go does not let you find the _matched data_ of a regex from a stream of data.  They let you find [the first position of a match](https://godoc.org/regexp#Regexp.FindReaderIndex), but not the data itself.
 
-Streamregex allows you to get a channel of the _matched data_ of a regex on a io.Reader stream.
+Streamregex sends you the _matched data_ of a regex on a io.Reader stream over a channel.
 
 ## Usage
+
+`FindReader` sends each match on a channel you own. It runs synchronously and returns an
+error (`nil` on clean EOF, otherwise a read or context error), so the caller owns error
+handling, concurrency, and the channel's lifecycle. Run it in a goroutine and close the
+channel once it returns:
 
 ```go
 // Create string
@@ -17,13 +22,40 @@ stream := strings.NewReader(data)
 // Build regex
 regex := regexp.MustCompile(`stream\s+of`)
 
-// Find matches
-matchedData := FindReader(context.Background(), regex, 100, stream)
-for match := range matchedData {
+// The caller owns the channel: run FindReader in a goroutine and close it when done.
+matches := make(chan string)
+go func() {
+    FindReader(context.Background(), regex, 100, stream, matches)
+    close(matches)
+}()
+
+for match := range matches {
     fmt.Println(match)
 }
 
 // Output: stream    of
+```
+
+### With match locations
+
+`FindReaderIndex` additionally reports each match's `[start, end]` byte offsets on a second
+channel. The index is sent just before its match, so the caller MUST drain both channels;
+buffer the index channel by 1 (or receive the index before the match) to avoid a deadlock:
+
+```go
+matches := make(chan string)
+indexes := make(chan []int, 1) // buffered: index is sent just before its match
+go func() {
+    FindReaderIndex(context.Background(), regex, 100, stream, matches, indexes)
+    close(matches)
+    close(indexes)
+}()
+
+for match := range matches {
+    fmt.Println(match, <-indexes)
+}
+
+// Output: stream    of [20 32]
 ```
 
 ## How it works

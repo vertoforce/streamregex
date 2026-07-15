@@ -7,8 +7,8 @@ import (
 	"regexp"
 )
 
-// SplitRegexIndex takes a regex and a channel for sending the locations at wich the matches are found; and returns a split function that will find that regex in a byte slice
-func SplitRegexIndex(re *regexp.Regexp, maxMatchLength int, indexChannel chan []int) bufio.SplitFunc {
+// SplitRegexIndex takes a regex and a channel for sending the locations at which the matches are found; and returns a split function that will find that regex in a byte slice
+func SplitRegexIndex(re *regexp.Regexp, maxMatchLength int, indexChannel chan<- []int) bufio.SplitFunc {
 	var byteCount int
 
 	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -17,9 +17,7 @@ func SplitRegexIndex(re *regexp.Regexp, maxMatchLength int, indexChannel chan []
 		}
 
 		if loc := re.FindIndex(data); loc != nil {
-			absLoc := make([]int, 2)
-			absLoc[0] = loc[0] + byteCount
-			absLoc[1] = loc[1] + byteCount
+			absLoc := []int{loc[0] + byteCount, loc[1] + byteCount}
 			indexChannel <- absLoc
 			byteCount = byteCount + loc[1]
 			return loc[1], data[loc[0]:loc[1]], nil
@@ -36,35 +34,36 @@ func SplitRegexIndex(re *regexp.Regexp, maxMatchLength int, indexChannel chan []
 	}
 }
 
-// FindReaderIndex returns a channel of matched strings from the reader and a channel of the locations
-// ([start, end] byte offsets) at which the matches were found.
-// This function will allocate maxMatchLength*2 bytes of memory.
+// FindReaderIndex scans reader for matches of re. It sends each match on the caller-owned
+// matches channel and its location ([start, end] absolute byte offsets) on the caller-owned
+// indexes channel. It runs synchronously (no internal goroutine) and returns when the reader
+// is exhausted, ctx is canceled, or a read error occurs.
 //
-// Both channels are closed once scanning finishes. The caller MUST drain both channels
-// (read every match and its corresponding index); each match sends its index before the
-// match itself, so reading matches without also reading indexes will deadlock the scanner.
-// Canceling ctx stops scanning after the current match.
-func FindReaderIndex(ctx context.Context, r *regexp.Regexp, maxMatchLength int, reader io.Reader) (chan string, chan []int) {
-	allMatches := make(chan string)
-	allIndexes := make(chan []int, 1) // Buffered so SplitRegexIndex can send the index and still return the match before the consumer reads the index
-
+// The caller owns both channels: FindReaderIndex never closes them. Typically you launch
+// FindReaderIndex in a goroutine, then close both channels once it returns and range over
+// them from another goroutine (see ExampleFindReaderIndex).
+//
+// The caller MUST drain BOTH channels. Each index is sent immediately before its
+// corresponding match, so give the index channel a buffer of 1 (or receive the index
+// before the match) — otherwise the scanner blocks sending the index while the caller
+// waits for the match and the whole thing deadlocks.
+//
+// If ctx is canceled, FindReaderIndex returns ctx.Err(). Otherwise it returns any error
+// from the underlying reader (a nil return means a clean EOF). This function will allocate
+// maxMatchLength*2 bytes of memory.
+func FindReaderIndex(ctx context.Context, re *regexp.Regexp, maxMatchLength int, reader io.Reader, matches chan<- string, indexes chan<- []int) error {
 	buf := make([]byte, maxMatchLength*2)
 
-	go func() {
-		defer close(allMatches)
-		defer close(allIndexes)
-
-		scanner := bufio.NewScanner(reader)
-		scanner.Buffer(buf, maxMatchLength)
-		scanner.Split(SplitRegexIndex(r, maxMatchLength, allIndexes))
-		for scanner.Scan() {
-			select {
-			case <-ctx.Done():
-				return
-			case allMatches <- scanner.Text():
-			}
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(buf, maxMatchLength)
+	scanner.Split(SplitRegexIndex(re, maxMatchLength, indexes))
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case matches <- scanner.Text():
 		}
-	}()
+	}
 
-	return allMatches, allIndexes
+	return scanner.Err()
 }
