@@ -43,5 +43,5 @@ func ExampleFindReaderIndex() {
 		fmt.Println(match, index)
 	}
 
-	// Output: stream    of
+	// Output: stream    of [20 32]
 }
