@@ -27,27 +27,30 @@ func SplitRegex(re *regexp.Regexp, maxMatchLength int) bufio.SplitFunc {
 	}
 }
 
-// FindReader return channel of matched []byte from reader.
-// This function will allocate maxMatchLength*2 bytes of memory
-func FindReader(ctx context.Context, r *regexp.Regexp, maxMatchLength int, reader io.Reader) chan string {
-	allMatches := make(chan string)
-
+// FindReader scans reader for matches of re and sends each match on the caller-owned
+// matches channel. It runs synchronously (no internal goroutine) and returns when the
+// reader is exhausted, ctx is canceled, or a read error occurs.
+//
+// The caller owns matches: FindReader never closes it. Typically you launch FindReader
+// in a goroutine, then close matches once it returns and range over it from another
+// goroutine (see ExampleFindReader).
+//
+// If ctx is canceled, FindReader returns ctx.Err(). Otherwise it returns any error from
+// the underlying reader (a nil return means a clean EOF). This function will allocate
+// maxMatchLength*2 bytes of memory.
+func FindReader(ctx context.Context, re *regexp.Regexp, maxMatchLength int, reader io.Reader, matches chan<- string) error {
 	buf := make([]byte, maxMatchLength*2)
 
-	go func() {
-		defer close(allMatches)
-
-		scanner := bufio.NewScanner(reader)
-		scanner.Buffer(buf, maxMatchLength)
-		scanner.Split(SplitRegex(r, maxMatchLength))
-		for scanner.Scan() {
-			select {
-			case <-ctx.Done():
-				return
-			case allMatches <- scanner.Text():
-			}
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(buf, maxMatchLength)
+	scanner.Split(SplitRegex(re, maxMatchLength))
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case matches <- scanner.Text():
 		}
-	}()
+	}
 
-	return allMatches
+	return scanner.Err()
 }

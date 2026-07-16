@@ -43,8 +43,19 @@ func TestFindReaderIndex(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// Find matches
-		matchedData, locationsData := FindReaderIndex(context.Background(), test.regex, test.maxMatchLen, strings.NewReader(test.input))
+		// Find matches. The caller owns both channels. The index is sent just before its
+		// match, so the index channel is buffered by 1 to avoid a deadlock. Run
+		// FindReaderIndex in a goroutine and close both channels once it returns.
+		matchedData := make(chan string)
+		locationsData := make(chan []int, 1)
+		go func() {
+			if err := FindReaderIndex(context.Background(), test.regex, test.maxMatchLen, strings.NewReader(test.input), matchedData, locationsData); err != nil {
+				t.Errorf("FindReaderIndex returned error: %v", err)
+			}
+			close(matchedData)
+			close(locationsData)
+		}()
+
 		matches := 0
 		for match := range matchedData {
 			location := <-locationsData

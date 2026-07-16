@@ -15,11 +15,16 @@ func ExampleFindReader() {
 	// Build regex
 	regex := regexp.MustCompile(`stream\s+of`)
 
+	// The caller owns the channel. Run FindReader in a goroutine and close the channel
+	// once it returns so the range below terminates.
+	matches := make(chan string)
+	go func() {
+		FindReader(context.Background(), regex, 100, stream, matches)
+		close(matches)
+	}()
+
 	// Find matches
-	matchedData := FindReader(context.Background(), regex, 100, stream)
-	matches := 0
-	for match := range matchedData {
-		matches++
+	for match := range matches {
 		fmt.Println(match)
 	}
 
@@ -34,14 +39,21 @@ func ExampleFindReaderIndex() {
 	// Build regex
 	regex := regexp.MustCompile(`stream\s+of`)
 
+	// The caller owns both channels. The index is sent just before its match, so the
+	// index channel is buffered by 1 to avoid a deadlock. Run FindReaderIndex in a
+	// goroutine and close both channels once it returns.
+	matches := make(chan string)
+	indexes := make(chan []int, 1)
+	go func() {
+		FindReaderIndex(context.Background(), regex, 100, stream, matches, indexes)
+		close(matches)
+		close(indexes)
+	}()
+
 	// Find matches and indexes
-	matchedData, matchedIndexes := FindReaderIndex(context.Background(), regex, 100, stream)
-	matches := 0
-	for match := range matchedData {
-		index := <-matchedIndexes
-		matches++
-		fmt.Println(match, index)
+	for match := range matches {
+		fmt.Println(match, <-indexes)
 	}
 
-	// Output: stream    of
+	// Output: stream    of [20 32]
 }
